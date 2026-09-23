@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIPL Cross-Border Data Transfer Audit</title>
+<style>
+:root {
+  --bg: #0f1419;
+  --panel: #1a2028;
+  --panel2: #232a36;
+  --border: #2f3845;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --yellow: #d29922;
+  --orange: #f0883e;
+  --red: #f85149;
+  --critical: #f85149;
+  --high: #f0883e;
+  --medium: #d29922;
+  --low: #3fb950;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.topbar {
+  background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.topbar h1 { font-size: 18px; font-weight: 600; }
+.topbar .meta { font-size: 12px; color: var(--text-dim); }
+.container { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+.card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 28px; font-weight: 700; margin-top: 8px; }
+.card .sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.card.critical .value { color: var(--critical); }
+.card.high .value { color: var(--high); }
+.card.success .value { color: var(--low); }
+
+.section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.section .header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.section .header h2 { font-size: 14px; font-weight: 600; }
+.section .header .badge {
+  font-size: 11px;
+  background: var(--panel2);
+  padding: 3px 10px;
+  border-radius: 12px;
+  color: var(--text-dim);
+}
+.section .body { padding: 16px 20px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table th, table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+table th { color: var(--text-dim); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+table tr:hover td { background: var(--panel2); }
+table td.mono { font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.tag.critical { background: rgba(248,81,73,0.15); color: var(--critical); border: 1px solid rgba(248,81,73,0.4); }
+.tag.high { background: rgba(240,136,62,0.15); color: var(--high); border: 1px solid rgba(240,136,62,0.4); }
+.tag.medium { background: rgba(210,153,34,0.15); color: var(--medium); border: 1px solid rgba(210,153,34,0.4); }
+.tag.low { background: rgba(63,185,80,0.15); color: var(--low); border: 1px solid rgba(63,185,80,0.4); }
+.tag.normal { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.4); }
+.tag.sensitive { background: rgba(240,136,62,0.15); color: var(--high); border: 1px solid rgba(240,136,62,0.4); }
+.tag.important { background: rgba(248,81,73,0.15); color: var(--critical); border: 1px solid rgba(248,81,73,0.4); }
+
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.form-item { display: flex; flex-direction: column; }
+.form-item label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-item input, .form-item select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.form-item input:focus, .form-item select:focus {
+  outline: none; border-color: var(--accent);
+}
+.btn {
+  background: var(--accent);
+  color: #0d1117;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn:hover { background: #79b8ff; }
+.btn.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+.btn.secondary:hover { background: var(--border); }
+
+.result-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  margin-top: 12px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  background: var(--panel);
+}
+.tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--text); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.bar-chart { display: flex; flex-direction: column; gap: 8px; }
+.bar-row { display: flex; align-items: center; gap: 12px; }
+.bar-row .name { width: 110px; font-size: 12px; }
+.bar-row .bar { flex: 1; height: 22px; background: var(--bg); border-radius: 3px; overflow: hidden; position: relative; }
+.bar-row .fill { height: 100%; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; color: var(--bg); }
+.bar-row .pct { width: 50px; text-align: right; font-size: 12px; color: var(--text-dim); }
+
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+.modal.open { display: flex; }
+.modal-content {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 80%;
+  max-width: 900px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 20px; overflow-y: auto; }
+.close-btn { background: none; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer; }
+.close-btn:hover { color: var(--text); }
+
+.dpia-scores { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
+.score-cell {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  text-align: center;
+}
+.score-cell .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+.score-cell .num { font-size: 20px; font-weight: 700; margin-top: 4px; }
+
+.dim-info { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--text-dim); flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+.empty { color: var(--text-dim); font-style: italic; padding: 12px 0; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🌏 PIPL Cross-Border Data Transfer Audit</h1>
+  <div class="meta">
+    <span>PIPL v0.1.0 · 网信办令第16号 (2024)</span>
+    · <a href="/docs" style="color:var(--accent)">API Docs</a>
+    · <a href="/health" style="color:var(--accent)">Health</a>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 4 Metric Cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="label">Data Assets</div>
+      <div class="value" id="m-assets">—</div>
+      <div class="sub"><span id="m-assets-spi">—</span> SPI / IMPORTANT</div>
+    </div>
+    <div class="card">
+      <div class="label">Active Cross-Border Flows</div>
+      <div class="value" id="m-flows">—</div>
+      <div class="sub"><span id="m-flows-vol">—</span> records / year</div>
+    </div>
+    <div class="card success">
+      <div class="label">SCC Coverage (Recipients)</div>
+      <div class="value" id="m-scc">—</div>
+      <div class="sub"><span id="m-scc-detail">—</span> signed</div>
+    </div>
+    <div class="card critical">
+      <div class="label">Open CRITICAL Exceptions</div>
+      <div class="value" id="m-exc">—</div>
+      <div class="sub"><span id="m-exc-open">—</span> total OPEN</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="section" style="padding:0">
+    <div class="tabs">
+      <button class="tab active" data-tab="flows">🌐 数据出境流向</button>
+      <button class="tab" data-tab="dpia">📊 DPIA 风险</button>
+      <button class="tab" data-tab="recipients">🏢 接收方</button>
+      <button class="tab" data-tab="exceptions">⚠️ 风险例外</button>
+      <button class="tab" data-tab="pathway">🧭 Pathway 判定</button>
+      <button class="tab" data-tab="scc">📄 SCC 生成</button>
+    </div>
+
+    <!-- Tab: Flows -->
+    <div class="tab-panel active" data-tab="flows">
+      <div class="body">
+        <table id="tbl-flows">
+          <thead>
+            <tr>
+              <th>Flow ID</th><th>Name</th><th>源资产 → 接收方</th>
+              <th>国家</th><th>类别</th><th>体量/年</th>
+              <th>DPIA 风险</th><th>法律基础</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: DPIA -->
+    <div class="tab-panel" data-tab="dpia">
+      <div class="body">
+        <div class="legend" style="margin-bottom:12px">
+          <span style="color:var(--text); font-weight:600">DPIA 评分体系：</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--low)"></span>LOW (&lt;40)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--medium)"></span>MEDIUM (40-59)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--high)"></span>HIGH (60-74)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--critical)"></span>CRITICAL (≥75 或 无单独同意)</span>
+        </div>
+        <table id="tbl-pia">
+          <thead>
+            <tr>
+              <th>PIA ID</th><th>Flow</th>
+              <th>必要性</th><th>风险</th><th>敏感度</th><th>体量</th><th>接收方</th>
+              <th>分</th><th>等级</th><th>控制</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+        </table>
+        <h3 style="font-size:13px;margin-top:20px;margin-bottom:8px;color:var(--text-dim)">单条 DPIA 快速计算</h3>
+        <div class="form-grid">
+          <div class="form-item"><label>必要性 (1-5)</label><input type="number" id="dpia-necessity" min="1" max="5" value="3"></div>
+          <div class="form-item"><label>风险 (1-5)</label><input type="number" id="dpia-risk" min="1" max="5" value="3"></div>
+          <div class="form-item"><label>敏感度 (1-5)</label><input type="number" id="dpia-sensitivity" min="1" max="5" value="2"></div>
+          <div class="form-item"><label>体量 (1-5)</label><input type="number" id="dpia-volume" min="1" max="5" value="2"></div>
+          <div class="form-item"><label>接收方安全 (1-5)</label><input type="number" id="dpia-recipient" min="1" max="5" value="3"></div>
+          <div class="form-item"><label>单独同意</label><select id="dpia-consent"><option value="true">是</option><option value="false">否</option></select></div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <div class="form-item"><label>SCC 已签</label><select id="dpia-scc"><option value="true">是</option><option value="false">否</option></select></div>
+          <div class="form-item" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn" id="btn-dpia-calc">计算</button></div>
+        </div>
+        <div class="result-box" id="dpia-result">点击「计算」查看评分</div>
+      </div>
+    </div>
+
+    <!-- Tab: Recipients -->
+    <div class="tab-panel" data-tab="recipients">
+      <div class="body">
+        <table id="tbl-recipients">
+          <thead>
+            <tr>
+              <th>Recipient ID</th><th>名称</th><th>国家</th><th>类型</th>
+              <th>SCC</th><th>合同日期</th><th>数据保护法</th>
+              <th>认证</th><th>风险</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Exceptions -->
+    <div class="tab-panel" data-tab="exceptions">
+      <div class="body">
+        <table id="tbl-exceptions">
+          <thead>
+            <tr>
+              <th>Flow</th><th>发现</th><th>严重度</th>
+              <th>补救措施</th><th>截止日</th><th>状态</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Pathway -->
+    <div class="tab-panel" data-tab="pathway">
+      <div class="body">
+        <div class="dim-info">输入场景参数 → 判定 PIPL 4 大合规路径（SECURITY_ASSESSMENT / SCC / CERTIFICATION / EXEMPTION）</div>
+        <div class="form-grid">
+          <div class="form-item">
+            <label>是否 CIIO</label>
+            <select id="pw-ciio"><option value="false">否</option><option value="true">是</option></select>
+          </div>
+          <div class="form-item">
+            <label>总数据主体数</label>
+            <input type="number" id="pw-total" value="500000">
+          </div>
+          <div class="form-item">
+            <label>SPI 主体数</label>
+            <input type="number" id="pw-spi" value="5000">
+          </div>
+          <div class="form-item">
+            <label>跨国集团内部</label>
+            <select id="pw-internal"><option value="false">否</option><option value="true">是</option></select>
+          </div>
+          <div class="form-item">
+            <label>是否必要跨境</label>
+            <select id="pw-necessary"><option value="true">是</option><option value="false">否</option></select>
+          </div>
+          <div class="form-item" style="justify-content:flex-end">
+            <label>&nbsp;</label>
+            <button class="btn" id="btn-pathway">判定</button>
+          </div>
+        </div>
+        <div class="result-box" id="pathway-result">点击「判定」查看路径 + 时间表</div>
+      </div>
+    </div>
+
+    <!-- Tab: SCC -->
+    <div class="tab-panel" data-tab="scc">
+      <div class="body">
+        <div class="dim-info">基于已有数据流生成 PIPL 标准合同（含 SPI 特别条款 / 72h 通知 / 30 天销毁）</div>
+        <div class="form-grid">
+          <div class="form-item">
+            <label>数据流 ID</label>
+            <select id="scc-flowid"><option>DF-001</option></select>
+          </div>
+          <div class="form-item">
+            <label>出境方名称</label>
+            <input type="text" id="scc-exporter" value="Trip.Biz (Beijing) Co., Ltd.">
+          </div>
+          <div class="form-item">
+            <label>出境方所在地</label>
+            <input type="text" id="scc-country" value="中国 北京">
+          </div>
+          <div class="form-item">
+            <label>出境方联系方式</label>
+            <input type="text" id="scc-contact" value="dpo@tripbiz.com">
+          </div>
+          <div class="form-item" style="justify-content:flex-end">
+            <label>&nbsp;</label>
+            <button class="btn" id="btn-scc-gen">生成合同</button>
+          </div>
+        </div>
+        <div class="result-box" id="scc-result">点击「生成合同」查看 PIPL SCC 合同文本</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">详情</h2>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// State
+// ============================================
+let _summary = null;
+let _flows = [];
+let _pias = [];
+let _recipients = [];
+let _exceptions = [];
+
+// ============================================
+// Tab switcher
+// ============================================
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    document.querySelector(`.tab-panel[data-tab="${target}"]`).classList.add('active');
+  });
+});
+
+// ============================================
+// Helpers
+// ============================================
+function fmtNum(n) { return Number(n).toLocaleString('en-US'); }
+function fmtVolume(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n;
+}
+function tag(text, cls) {
+  return `<span class="tag ${cls}">${text}</span>`;
+}
+function riskTag(level) {
+  const map = {CRITICAL:'critical', HIGH:'high', MEDIUM:'medium', LOW:'low'};
+  return tag(level, map[level] || 'normal');
+}
+function sensTag(sens) {
+  const map = {NORMAL:'normal', SENSITIVE:'sensitive', IMPORTANT:'important'};
+  return tag(sens, map[sens] || 'normal');
+}
+function basisTag(b) {
+  const map = {
+    SCC: 'low',
+    SECURITY_ASSESSMENT: 'critical',
+    CERTIFICATION: 'medium',
+    EXEMPTION: 'normal',
+  };
+  return tag(b, map[b] || 'normal');
+}
+
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`${r.status}: ${txt}`);
+  }
+  return await r.json();
+}
+
+// ============================================
+// Load data
+// ============================================
+async function loadAll() {
+  await Promise.all([loadSummary(), loadFlows(), loadPIAs(), loadRecipients(), loadExceptions()]);
+}
+
+async function loadSummary() {
+  try {
+    const s = await fetchJSON('/api/dashboard/summary');
+    _summary = s;
+    document.getElementById('m-assets').textContent = s.assets.total;
+    document.getElementById('m-assets-spi').textContent = s.assets.spi;
+    document.getElementById('m-flows').textContent = s.flows.total;
+    document.getElementById('m-flows-vol').textContent = fmtVolume(s.flows.annual_volume);
+    document.getElementById('m-scc').textContent = s.recipients.scc_coverage_pct + '%';
+    document.getElementById('m-scc-detail').textContent = `${s.recipients.scc_signed}/${s.recipients.total}`;
+    document.getElementById('m-exc').textContent = s.exceptions.critical_open;
+    document.getElementById('m-exc-open').textContent = s.exceptions.open;
+  } catch(e) {
+    console.error('Summary:', e);
+  }
+}
+
+async function loadFlows() {
+  try {
+    const d = await fetchJSON('/api/flows');
+    _flows = d.items;
+    const tbody = document.querySelector('#tbl-flows tbody');
+    if (!d.items.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据 — POST /api/admin/seed</td></tr>';
+      return;
+    }
+    // 先抓所有 PIA + recipient 做 join
+    const piaMap = {};
+    for (const p of _pias) piaMap[p.flow_id] = p;
+    const recMap = {};
+    for (const r of _recipients) recMap[r.recipient_id] = r;
+    tbody.innerHTML = d.items.map(f => {
+      const pia = piaMap[f.flow_id];
+      const rec = recMap[f.recipient_id];
+      const level = pia ? pia.risk_level : '—';
+      return `<tr>
+        <td class="mono">${f.flow_id}</td>
+        <td>${f.flow_name}</td>
+        <td class="mono">${f.source_asset_id} → ${f.recipient_id} ${rec?`<span style="color:var(--text-dim)">(${rec.recipient_name})</span>`:''}</td>
+        <td>${rec?rec.recipient_country:'—'}</td>
+        <td style="font-size:11px;color:var(--text-dim)">${(f.data_categories||[]).join(', ')}</td>
+        <td>${fmtNum(f.volume_per_year)}</td>
+        <td>${riskTag(level)}</td>
+        <td>${basisTag(f.legal_basis)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('Flows:', e);
+  }
+}
+
+async function loadPIAs() {
+  try {
+    const d = await fetchJSON('/api/pia');
+    _pias = d.items;
+    const tbody = document.querySelector('#tbl-pia tbody');
+    if (!d.items.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无 PIA</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.items.map(p => {
+      const ctrl = [];
+      if (p.separate_consent) ctrl.push(tag('✓ 同意', 'low'));
+      else ctrl.push(tag('✗ 同意', 'critical'));
+      if (p.scc_signed) ctrl.push(tag('✓ SCC', 'low'));
+      else ctrl.push(tag('✗ SCC', 'high'));
+      if (p.security_assessment) ctrl.push(tag('✓ 评估', 'low'));
+      if (p.certification) ctrl.push(tag('✓ 认证', 'low'));
+      return `<tr>
+        <td class="mono">${p.pia_id}</td>
+        <td class="mono">${p.flow_id}</td>
+        <td>${p.necessity_score}</td>
+        <td>${p.risk_score}</td>
+        <td>${p.sensitivity_score}</td>
+        <td>${p.volume_score}</td>
+        <td>${p.recipient_score}</td>
+        <td><b>${p.total_score}</b></td>
+        <td>${riskTag(p.risk_level)}</td>
+        <td>${ctrl.join(' ')}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('PIAs:', e);
+  }
+}
+
+async function loadRecipients() {
+  try {
+    const d = await fetchJSON('/api/recipients');
+    _recipients = d.items;
+    const tbody = document.querySelector('#tbl-recipients tbody');
+    if (!d.items.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无数据</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.items.map(r => {
+      const sccTag = r.contract_signed
+        ? tag('✓ 已签', 'low')
+        : tag('✗ 未签', 'critical');
+      const riskMap = {LOW:'low', MEDIUM:'medium', HIGH:'high'};
+      return `<tr>
+        <td class="mono">${r.recipient_id}</td>
+        <td>${r.recipient_name}</td>
+        <td>${r.recipient_country}</td>
+        <td>${r.recipient_type}</td>
+        <td>${sccTag}</td>
+        <td>${r.contract_date || '—'}</td>
+        <td style="font-size:11px">${r.data_protection_law || '—'}</td>
+        <td style="font-size:11px">${r.security_cert || '—'}</td>
+        <td>${riskTag(r.risk_level)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('Recipients:', e);
+  }
+}
+
+async function loadExceptions() {
+  try {
+    const d = await fetchJSON('/api/exceptions');
+    _exceptions = d.items;
+    const tbody = document.querySelector('#tbl-exceptions tbody');
+    if (!d.items.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无例外</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.items.map(e => {
+      const sevMap = {CRITICAL:'critical', HIGH:'high', MEDIUM:'medium'};
+      const stMap = {OPEN:'critical', IN_PROGRESS:'medium', RESOLVED:'low', ACCEPTED:'normal'};
+      const btn = e.status === 'OPEN'
+        ? `<button class="btn secondary" onclick="resolveExc('${e.exception_id}')">标记 RESOLVED</button>`
+        : `<span style="color:var(--text-dim);font-size:11px">${e.status}</span>`;
+      return `<tr>
+        <td class="mono">${e.flow_id}</td>
+        <td>${e.finding}</td>
+        <td>${tag(e.severity, sevMap[e.severity]||'medium')}</td>
+        <td style="font-size:11px">${e.remediation || '—'}</td>
+        <td>${e.due_date || '—'}</td>
+        <td>${tag(e.status, stMap[e.status]||'normal')}</td>
+        <td>${btn}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('Exceptions:', e);
+  }
+}
+
+// ============================================
+// Interactions
+// ============================================
+document.getElementById('btn-dpia-calc').addEventListener('click', async () => {
+  const body = {
+    necessity: +document.getElementById('dpia-necessity').value,
+    risk: +document.getElementById('dpia-risk').value,
+    sensitivity: +document.getElementById('dpia-sensitivity').value,
+    volume: +document.getElementById('dpia-volume').value,
+    recipient: +document.getElementById('dpia-recipient').value,
+    has_separate_consent: document.getElementById('dpia-consent').value === 'true',
+    scc_signed: document.getElementById('dpia-scc').value === 'true',
+  };
+  try {
+    const r = await fetchJSON('/api/dpia/score', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    document.getElementById('dpia-result').textContent = JSON.stringify(r, null, 2);
+  } catch(e) {
+    document.getElementById('dpia-result').textContent = 'Error: ' + e.message;
+  }
+});
+
+document.getElementById('btn-pathway').addEventListener('click', async () => {
+  const body = {
+    is_ciio: document.getElementById('pw-ciio').value === 'true',
+    total_subjects: +document.getElementById('pw-total').value,
+    spi_subjects: +document.getElementById('pw-spi').value,
+    is_internal_group: document.getElementById('pw-internal').value === 'true',
+    is_necessary: document.getElementById('pw-necessary').value === 'true',
+  };
+  try {
+    const r = await fetchJSON('/api/pathway/determine', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    let txt = `🧭 Pathway: ${r.pathway}\n\n`;
+    txt += `名称: ${r.info.name}\n`;
+    txt += `时间表: ${r.info.timeline}\n`;
+    txt += `费用: ${r.info.fee}\n`;
+    txt += `有效期: ${r.info.validity}\n\n`;
+    txt += `触发条件:\n${r.info.triggers.map(t=>'  - '+t).join('\n')}`;
+    document.getElementById('pathway-result').textContent = txt;
+  } catch(e) {
+    document.getElementById('pathway-result').textContent = 'Error: ' + e.message;
+  }
+});
+
+document.getElementById('btn-scc-gen').addEventListener('click', async () => {
+  const body = {
+    flow_id: document.getElementById('scc-flowid').value,
+    exporter_name: document.getElementById('scc-exporter').value,
+    exporter_country: document.getElementById('scc-country').value,
+    exporter_contact: document.getElementById('scc-contact').value,
+  };
+  try {
+    const r = await fetchJSON('/api/scc/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    document.getElementById('scc-result').textContent =
+      `[is_spi=${r.is_spi}] ${r.contract_markdown}`;
+  } catch(e) {
+    document.getElementById('scc-result').textContent = 'Error: ' + e.message;
+  }
+});
+
+async function resolveExc(eid) {
+  try {
+    await fetchJSON(`/api/exceptions/${eid}/resolve`, {method:'POST'});
+    await loadExceptions();
+    await loadSummary();
+  } catch(e) {
+    alert('Resolve 失败: ' + e.message);
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+// ============================================
+// Initial load
+// ============================================
+(async () => {
+  await loadAll();
+  // populate SCC flow selector
+  const sel = document.getElementById('scc-flowid');
+  sel.innerHTML = _flows.map(f => `<option value="${f.flow_id}">${f.flow_id} — ${f.flow_name}</option>`).join('');
+})();
+</script>
+</body>
+</html>
